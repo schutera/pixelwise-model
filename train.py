@@ -1,8 +1,12 @@
-"""Train digit_classifier_v1: LogisticRegression on MNIST digits 1-9.
+"""Train digit_classifier_v2: MLPClassifier on MNIST digits 0-9.
 
 The artefact this script produces is the contract that pixelwise/app/classifier.py
-consumes. Class 0 is intentionally withheld so a v2 release can add it later
-without collecting any new data.
+consumes. v2 adds class 0, which v1 deliberately withheld, and swaps the
+LogisticRegression baseline for a small MLP to reach ~98% test accuracy. The
+Binarizer step is unchanged so the contract still matches a frontend that sends
+canvas pixels binarised at threshold 128.
+
+Reproducing v1 instead: ``git checkout v1.0 -- train.py`` and rerun.
 
 Run:
     python train.py
@@ -16,24 +20,23 @@ from pathlib import Path
 import joblib
 import numpy as np
 from sklearn.datasets import fetch_openml
-from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
+from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import Binarizer
 
-ARTEFACT = Path(__file__).parent / "digit_classifier_v1.pkl"
+ARTEFACT = Path(__file__).parent / "digit_classifier_v2.pkl"
 RANDOM_STATE = 42
 
 
-def load_mnist_excluding_zero() -> tuple[np.ndarray, np.ndarray]:
+def load_mnist() -> tuple[np.ndarray, np.ndarray]:
     X, y = fetch_openml(
         "mnist_784", version=1, return_X_y=True, as_frame=False
     )
     X = X.astype(np.float32) / 255.0
     y = y.astype(str)
-    mask = y != "0"
-    return X[mask], y[mask]
+    return X, y
 
 
 def build_pipeline() -> Pipeline:
@@ -42,9 +45,19 @@ def build_pipeline() -> Pipeline:
             ("binarize", Binarizer(threshold=0.5)),
             (
                 "clf",
-                LogisticRegression(
-                    max_iter=1000,
-                    solver="lbfgs",
+                # early_stopping stays off: sklearn 1.8.0 scores the
+                # validation split with np.isnan on string predictions, which
+                # raises. Adam stops on the training-loss plateau (tol /
+                # n_iter_no_change) instead; the held-out X_test split below is
+                # untouched either way, so the reported accuracy is honest.
+                MLPClassifier(
+                    hidden_layer_sizes=(256, 128),
+                    activation="relu",
+                    solver="adam",
+                    alpha=1e-4,
+                    max_iter=100,
+                    n_iter_no_change=8,
+                    tol=1e-4,
                     random_state=RANDOM_STATE,
                 ),
             ),
@@ -54,7 +67,7 @@ def build_pipeline() -> Pipeline:
 
 def main() -> None:
     print("Fetching MNIST (cached on rerun)...")
-    X, y = load_mnist_excluding_zero()
+    X, y = load_mnist()
     print(f"Samples: {len(X)}  features: {X.shape[1]}  classes: {sorted(set(y))}")
 
     X_train, X_test, y_train, y_test = train_test_split(
