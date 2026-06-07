@@ -1,12 +1,14 @@
-"""Train digit_classifier_v2: MLPClassifier on MNIST digits 0-9.
+"""Train digit_classifier v1.1: MLPClassifier on MNIST digits 1-9.
 
-The artefact this script produces is the contract that pixelwise/app/classifier.py
-consumes. v2 adds class 0, which v1 deliberately withheld, and swaps the
-LogisticRegression baseline for a small MLP to reach ~98% test accuracy. The
-Binarizer step is unchanged so the contract still matches a frontend that sends
-canvas pixels binarised at threshold 128.
+A drop-in accuracy upgrade for v1.0. Class scope is unchanged (0 still
+withheld), so `classes_` stays ["1".."9"] and the integrating app needs no
+code change: it keeps its 9-class CLASSES list. The model swaps
+LogisticRegression (~92%) for a small MLP (~98%), shipped as a new artefact
+(digit_classifier_v1_1.pkl) alongside the untouched v1.0 file; the app pins
+MODEL_PATH to it. The Binarizer step is unchanged so the contract still
+matches a frontend that sends canvas pixels binarised at threshold 128.
 
-Reproducing v1 instead: ``git checkout v1.0 -- train.py`` and rerun.
+For the 10-class variant (digits 0-9): ``git checkout v2.0 -- train.py``.
 
 Run:
     python train.py
@@ -26,17 +28,18 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import Binarizer
 
-ARTEFACT = Path(__file__).parent / "digit_classifier_v2.pkl"
+ARTEFACT = Path(__file__).parent / "digit_classifier_v1_1.pkl"
 RANDOM_STATE = 42
 
 
-def load_mnist() -> tuple[np.ndarray, np.ndarray]:
+def load_mnist_excluding_zero() -> tuple[np.ndarray, np.ndarray]:
     X, y = fetch_openml(
         "mnist_784", version=1, return_X_y=True, as_frame=False
     )
     X = X.astype(np.float32) / 255.0
     y = y.astype(str)
-    return X, y
+    mask = y != "0"
+    return X[mask], y[mask]
 
 
 def build_pipeline() -> Pipeline:
@@ -67,7 +70,7 @@ def build_pipeline() -> Pipeline:
 
 def main() -> None:
     print("Fetching MNIST (cached on rerun)...")
-    X, y = load_mnist()
+    X, y = load_mnist_excluding_zero()
     print(f"Samples: {len(X)}  features: {X.shape[1]}  classes: {sorted(set(y))}")
 
     X_train, X_test, y_train, y_test = train_test_split(

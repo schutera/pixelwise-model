@@ -1,20 +1,21 @@
-# MODELCARD.md: digit_classifier_v2
+# MODELCARD.md: digit_classifier v1.1
 
 ## Training Data
-MNIST digits 0-9, ~63k train / ~7k test, public domain.
-Class 0 is now included; v1 withheld it.
+MNIST digits 1-9, ~57k train / ~6.3k test, public domain.
+Class 0 withheld, same scope as v1.0; a v2 release adds it.
 Pixel values normalised from [0, 255] to [0, 1], then binarised at 0.5
 before training.
 
 ## Capabilities
-Predict handwritten digits 0-9.
-Expected accuracy: ~98% (MLP, 0.9789 on the held-out 7k test split).
+Predict handwritten digits 1-9.
+Expected accuracy: ~98% (MLP, 0.9800 on the held-out 6.3k test split),
+up from ~92% for the v1.0 LogisticRegression baseline.
 
 ## Known Failures
-9 is the weakest class (recall 0.968, precision 0.956), with the
-residual 6/9 and 3/8 confusions from v1 much reduced. Class 0 is the
-strongest (f1 0.991). Messy, rotated, or heavily skewed digits still
-fail.
+8 is the weakest class (f1 0.972), with the residual 6/9 and 3/8
+confusions from v1.0 much reduced. Messy, rotated, or heavily skewed
+digits still fail. Class 0 is out of distribution and withheld;
+predictions on a hand-drawn 0 are arbitrary and should not be trusted.
 
 ## Intended Use
 28x28 canvas drawings, greyscale, pixel values in [0, 255] (uint8) or
@@ -36,7 +37,8 @@ Inputs:
 - value range either {0.0, 1.0} (pre-binarised) or [0, 1] (the pipeline
   binarises at 0.5).
 
-`pipeline.classes_` returns `["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]`.
+`pipeline.classes_` returns `["1", "2", "3", "4", "5", "6", "7", "8", "9"]`,
+unchanged from v1.0, so the integrating app needs no code change.
 `pipeline.n_features_in_` returns `784`.
 
 ## Reproducibility
@@ -54,6 +56,7 @@ MNIST downloads automatically via `sklearn.datasets.fetch_openml` and
 is cached in `~/scikit_learn_data/`.
 
 ## Version
-v2.0 — adds class 0, swaps the LogisticRegression baseline for an MLP,
-~98% test accuracy. The integrating app must update its `CLASSES` list to
-the 10-class set and pin `MODEL_VERSION=v2.0`.
+v1.1 — drop-in accuracy upgrade over v1.0: same 9-class scope, swaps the
+LogisticRegression baseline for an MLP (~98%). Ships as a new artefact
+`digit_classifier_v1_1.pkl` alongside the untouched v1.0 file; the app
+pins `MODEL_VERSION=v1.1` and `MODEL_PATH=models/digit_classifier_v1_1.pkl`.
